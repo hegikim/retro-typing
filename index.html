@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>나만의 뉴스 타자 연습기</title>
+    <title>실시간 뉴스 타자 연습기</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,15 +16,20 @@
 
         <main class="practice-area">
             <div id="target-text" class="target-text">
-                연습할 문장이 여기에 표시됩니다.
+                구글 뉴스 가져오는 중... 잠시만 기다려주세요.
             </div>
             <input type="text" id="user-input" class="user-input" 
-                   placeholder="여기에 입력하세요"
+                   placeholder="뉴스가 로드되면 활성화됩니다" disabled
                    autocomplete="off" spellcheck="false" autocorrect="off">
         </main>
 
         <footer class="mode-info">
-            <span id="current-mode">데이터 로딩 중...</span>
+            <div id="current-mode">원격 연결 중...</div>
+            <div id="news-source-area" style="margin-top: 8px; font-size: 0.9rem;">
+                <a id="news-link" href="#" target="_blank" style="color: #ffcc00; text-decoration: underline; display: none;">
+                    📰 Google News에서 기사 보기
+                </a>
+            </div>
         </footer>
     </div>
     <script src="script.js"></script>
