@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>레트로 타자 연습기</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="stats-board">
+            <div class="stat">타수: <span id="cpm">0</span></div>
+            <div class="stat">정확도: <span id="accuracy">100</span>%</div>
+            <div class="stat">오타: <span id="errors">0</span></div>
+        </header>
+
+        <main class="practice-area">
+            <div id="target-text" class="target-text">
+                여기에 연습할 문장이 표시됩니다.
+            </div>
+            <input type="text" id="user-input" class="user-input" 
+                   placeholder="여기에 입력하세요" 
+                   autocomplete="off" spellcheck="false" autocorrect="off">
+        </main>
+
+        <footer class="mode-info">
+            <span id="current-mode">모드: 낱말 연습 (한글)</span>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
