@@ -1,95 +1,115 @@
-// 1. 데이터 저장소 및 기본 문장 세트 (금고가 비었을 때를 위한 기본 데이터)
-let practiceData = [];
-
-const defaultData = [
-    "정확도가 속도보다 훨씬 더 중요합니다. 천천히 정확하게 입력하세요.",
-    "모바일 오타를 줄이기 위한 나만의 레트로 타자 연습기입니다.",
-    "꾸준한 연습이 완벽을 만듭니다. 지루하더라도 매일 조금씩 연습해 보세요.",
-    "소음과 진동(NVH)은 기계의 감성 품질을 결정짓는 매우 중요한 요소입니다.",
-    "Practice makes perfect. Take your time and build muscle memory.",
-    "Slow Horses and Silo are great serialized thriller dramas."
-];
-
+// 1. 변수 및 데이터 저장소 초기화
+let newsData = []; 
 let currentText = "";
+let currentLink = "";
 let currentIndexInArray = -1;
 
 let startTime = null;
 let totalTyped = 0;
 let totalErrors = 0;
 
-// 2. HTML 요소 가져오기
+// 2. 네트워크 지연/실패 시 즉시 전환될 비상 백업 데이터 (한영 혼합)
+const backupData = [
+    { title: "정확도가 속도보다 훨씬 더 중요합니다.", link: "https://news.google.com" },
+    { title: "모바일 오타를 줄이기 위한 레트로 타자 연습기입니다.", link: "https://news.google.com" },
+    { title: "꾸준한 연습이 완벽을 만듭니다. 천천히 입력해 보세요.", link: "https://news.google.com" },
+    { title: "소음과 진동(NVH)은 차량의 품질을 결정하는 중요한 요소입니다.", link: "https://news.google.com" },
+    { title: "Practice makes perfect. Take your time.", link: "https://news.google.com" },
+    { title: "Slow Horses and Silo are great serialized dramas.", link: "https://news.google.com" }
+];
+
+// 3. HTML 요소 가져오기
 const targetTextEl = document.getElementById('target-text');
 const userInputEl = document.getElementById('user-input');
 const cpmEl = document.getElementById('cpm');
 const accuracyEl = document.getElementById('accuracy');
 const errorsEl = document.getElementById('errors');
 const currentModeEl = document.getElementById('current-mode');
+const newsLinkEl = document.getElementById('news-link');
 
-// 3. 텍스트 데이터를 문장 단위로 깔끔하게 쪼개주는 전처리 함수
-function splitIntoSentences(text) {
-    // 뉴스 특유의 꼬리표 정보 및 불필요한 공백 제거
-    let cleanText = text.replace(/\[.*?\]|\(.*?\)/g, "").trim();
-    
-    // 마침표(.), 물음표(?), 느낌표(!), 혹은 줄바꿈(\n) 기준으로 문장 분리
-    return cleanText.split(/[.!?\n]+/)
-                    .map(s => s.trim())
-                    .filter(s => s.length > 6 && s.length < 120); // 너무 짧거나 너무 긴 문장 필터링
-}
+// 4. 구글 뉴스 RSS 파싱 (타임아웃 안전장치 포함)
+async function fetchGoogleNews() {
+    const googleNewsUrl = 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko';
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(googleNewsUrl)}`;
 
-// 4. 아이폰 단축어 데이터 수신 및 로컬스토리지 금고 제어 엔진
-function initDatabase() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sharedText = urlParams.get('text'); // 주소창 뒤의 ?text= 내용 낚아채기
+    // 5초 동안 응답이 없으면 강제로 요청을 취소하는 컨트롤러 생성
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); 
 
-    if (sharedText) {
-        // [케이스 1] 단축어를 통해 새로운 뉴스 텍스트가 유입된 경우
-        const newSentences = splitIntoSentences(decodeURIComponent(sharedText));
+    try {
+        const response = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId); // 제한 시간 내에 응답이 오면 타이머 해제
         
-        if (newSentences.length > 0) {
-            practiceData = newSentences;
-            // 브라우저 내부 금고에 영구 저장 (문자열 형태로 변환하여 저장)
-            localStorage.setItem('savedNewsData', JSON.stringify(practiceData));
+        if (!response.ok) throw new Error('네트워크 응답 실패');
+        const data = await response.json();
+        
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(data.contents, "text/xml");
+        const items = xmlDoc.getElementsByTagName('item');
+        
+        newsData = [];
+        for (let i = 0; i < items.length; i++) {
+            let title = items[i].getElementsByTagName('title')[0].textContent;
+            let link = items[i].getElementsByTagName('link')[0].textContent;
             
-            // 주소창의 지저분한 파라미터를 깔끔하게 밀어버려 재접속 시 중복 방지
-            window.history.replaceState({}, document.title, window.location.pathname);
-            alert(`📰 새로운 뉴스 문장 ${practiceData.length}개가 장착되었습니다!`);
+            const dashIndex = title.lastIndexOf(' - ');
+            if (dashIndex !== -1) {
+                title = title.substring(0, dashIndex).trim();
+            }
+            
+            if (title.length > 5) {
+                newsData.push({ title: title, link: link });
+            }
         }
-    } else {
-        // [케이스 2] 그냥 평소처럼 접속한 경우 -> 브라우저 금고를 열어봄
-        const savedData = localStorage.getItem('savedNewsData');
-        if (savedData) {
-            practiceData = JSON.parse(savedData);
-        } else {
-            // [케이스 3] 금고가 완전히 비어있는 최초 실행 시 -> 기본 세트 장착
-            practiceData = [...defaultData];
-        }
-    }
 
-    nextQuestion();
+        if (newsData.length === 0) throw new Error('추출된 뉴스 없음');
+
+        // 뉴스 로드 성공 시 가이드 메시지 변경
+        userInputEl.placeholder = "위 뉴스 제목을 입력하세요";
+        nextQuestion();
+
+    } catch (error) {
+        console.warn('뉴스 로딩 실패 또는 시간 초과. 백업 모드로 전환합니다.', error);
+        // 서버가 무응답이거나 에러 나면 즉시 백업 데이터 세트로 판을 깔아줍니다.
+        newsData = [...backupData]; 
+        
+        userInputEl.placeholder = "백업 문장으로 연습을 시작합니다.";
+        nextQuestion();
+    }
 }
 
-// 5. 다음 문제 출제 (무한 루프 보장)
+// 5. 다음 문제 출제 로직
 function nextQuestion() {
-    // 만약 공유된 뉴스를 다 쳤다면, 아까 저장해둔 기본 데이터 세트로 자동 복구하여 끊김 방지
-    if (practiceData.length === 0) {
-        practiceData = [...defaultData];
-        localStorage.removeItem('savedNewsData'); // 비워진 금고 초기화
-        alert("공유된 뉴스를 모두 완료하여 기본 문장 모드로 전환합니다.");
+    // 입력창이 잠겨있다면 즉시 해제하여 타이핑이 가능하게 만듭니다.
+    userInputEl.disabled = false;
+
+    if (newsData.length === 0) {
+        targetTextEl.innerText = "최신 뉴스를 다시 불러오는 중입니다...";
+        currentModeEl.innerText = "새로고침 중";
+        fetchGoogleNews();
+        return;
     }
 
-    currentIndexInArray = Math.floor(Math.random() * practiceData.length);
-    currentText = practiceData[currentIndexInArray];
+    currentIndexInArray = Math.floor(Math.random() * newsData.length);
+    currentText = newsData[currentIndexInArray].title;
+    currentLink = newsData[currentIndexInArray].link;
     
     targetTextEl.innerText = currentText;
     userInputEl.value = "";
     userInputEl.classList.remove('error');
     
-    // 하단 상태 표시줄 업데이트
-    const isDefault = defaultData.includes(currentText);
-    currentModeEl.innerText = isDefault ? `모드: 기본 문장 연습` : `남은 공유 뉴스 문장: ${practiceData.length}개`;
+    // 출처가 백업 데이터인지 진짜 뉴스인지에 따라 안내 문구 분기
+    if (currentLink.includes("news.google.com") && newsData.length <= backupData.length) {
+        currentModeEl.innerText = "모드: 기본 백업 문장 연습";
+        newsLinkEl.style.display = 'none'; // 백업일 땐 링크 숨기기
+    } else {
+        currentModeEl.innerText = `남은 실시간 뉴스: ${newsData.length}개`;
+        newsLinkEl.href = currentLink;
+        newsLinkEl.style.display = 'inline-block';
+    }
 }
 
-// 6. 타이핑 입력 감지 및 점수 연산
+// 6. 입력 감지 및 통계 연산 로직
 userInputEl.addEventListener('input', () => {
     if (!startTime) {
         startTime = new Date(); 
@@ -117,17 +137,17 @@ userInputEl.addEventListener('input', () => {
     errorsEl.innerText = totalErrors;
 
     if (typed === currentText) {
-        practiceData.splice(currentIndexInArray, 1); // 친 문장 삭제
-        
-        // 뉴스가 남아있다면 수시로 금고 상태 최신화
-        const isDefault = defaultData.includes(currentText);
-        if (!isDefault) {
-            localStorage.setItem('savedNewsData', JSON.stringify(practiceData));
-        }
-        
+        newsData.splice(currentIndexInArray, 1);
         nextQuestion();
     }
 });
 
-// 시스템 가동
-initDatabase();
+// 첫 기동 시 비상 데이터로 즉시 입력창을 열어두고 뉴스를 가져옵니다.
+currentText = "뉴스를 받아오는 동안 기본 문장으로 먼저 연습을 시작하세요!";
+targetTextEl.innerText = currentText;
+userInputEl.disabled = false;
+userInputEl.placeholder = "여기에 바로 입력하시면 시작됩니다.";
+currentModeEl.innerText = "서버 연결 시도 중...";
+
+// 백그라운드에서 뉴스 수신 시작
+fetchGoogleNews();
