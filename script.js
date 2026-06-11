@@ -1,123 +1,119 @@
-// 1. 변수 및 데이터 저장소 초기화
-let newsData = []; 
+// 1. 상태 변수 정의
+let practiceData = [];
 let currentText = "";
-let currentLink = "";
 let currentIndexInArray = -1;
 
 let startTime = null;
 let totalTyped = 0;
 let totalErrors = 0;
 
-// 2. 네트워크 지연/실패 시 즉시 전환될 비상 백업 데이터 (한영 혼합)
-const backupData = [
-    { title: "정확도가 속도보다 훨씬 더 중요합니다.", link: "https://news.google.com" },
-    { title: "모바일 오타를 줄이기 위한 레트로 타자 연습기입니다.", link: "https://news.google.com" },
-    { title: "꾸준한 연습이 완벽을 만듭니다. 천천히 입력해 보세요.", link: "https://news.google.com" },
-    { title: "소음과 진동(NVH)은 차량의 품질을 결정하는 중요한 요소입니다.", link: "https://news.google.com" },
-    { title: "Practice makes perfect. Take your time.", link: "https://news.google.com" },
-    { title: "Slow Horses and Silo are great serialized dramas.", link: "https://news.google.com" }
+// 기본 백업 문장 세트
+const defaultData = [
+    "정확도가 속도보다 훨씬 더 중요합니다.",
+    "모바일 오타를 줄이기 위한 레트로 타자 연습기입니다.",
+    "소음과 진동(NVH)은 차량의 품질을 결정하는 중요한 요소입니다.",
+    "Practice makes perfect. Take your time."
 ];
 
-// 3. HTML 요소 가져오기
+// 2. HTML 요소 매핑
+const mainContainer = document.getElementById('main-container');
 const targetTextEl = document.getElementById('target-text');
 const userInputEl = document.getElementById('user-input');
+const textPasteArea = document.getElementById('text-paste-area');
+const btnLoadPaste = document.getElementById('btn-load-paste');
+const fileInput = document.getElementById('file-input');
 const cpmEl = document.getElementById('cpm');
 const accuracyEl = document.getElementById('accuracy');
 const errorsEl = document.getElementById('errors');
 const currentModeEl = document.getElementById('current-mode');
-const newsLinkEl = document.getElementById('news-link');
 
-// 4. 구글 뉴스 RSS 파싱 (타임아웃 안전장치 포함)
-async function fetchGoogleNews() {
-    const googleNewsUrl = 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko';
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(googleNewsUrl)}`;
-
-    // 5초 동안 응답이 없으면 강제로 요청을 취소하는 컨트롤러 생성
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); 
-
-    try {
-        const response = await fetch(proxyUrl, { signal: controller.signal });
-        clearTimeout(timeoutId); // 제한 시간 내에 응답이 오면 타이머 해제
-        
-        if (!response.ok) throw new Error('네트워크 응답 실패');
-        const data = await response.json();
-        
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-        const items = xmlDoc.getElementsByTagName('item');
-        
-        newsData = [];
-        for (let i = 0; i < items.length; i++) {
-            let title = items[i].getElementsByTagName('title')[0].textContent;
-            let link = items[i].getElementsByTagName('link')[0].textContent;
-            
-            const dashIndex = title.lastIndexOf(' - ');
-            if (dashIndex !== -1) {
-                title = title.substring(0, dashIndex).trim();
-            }
-            
-            if (title.length > 5) {
-                newsData.push({ title: title, link: link });
-            }
-        }
-
-        if (newsData.length === 0) throw new Error('추출된 뉴스 없음');
-
-        // 뉴스 로드 성공 시 가이드 메시지 변경
-        userInputEl.placeholder = "위 뉴스 제목을 입력하세요";
-        nextQuestion();
-
-    } catch (error) {
-        console.warn('뉴스 로딩 실패 또는 시간 초과. 백업 모드로 전환합니다.', error);
-        // 서버가 무응답이거나 에러 나면 즉시 백업 데이터 세트로 판을 깔아줍니다.
-        newsData = [...backupData]; 
-        
-        userInputEl.placeholder = "백업 문장으로 연습을 시작합니다.";
-        nextQuestion();
-    }
+// 3. [iOS 버그 해결] 키보드가 올라올 때 화면 위치를 가상 뷰포트에 고정
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+        // 실제 눈에 보이는 화면 높이만큼 컨테이너 크기를 강제 고정
+        mainContainer.style.height = `${window.visualViewport.height}px`;
+        // 사파리가 화면을 위로 밀어 올리는 현상을 원천 방어
+        window.scrollTo(0, 0); 
+    });
 }
 
-// 5. 다음 문제 출제 로직
-function nextQuestion() {
-    // 입력창이 잠겨있다면 즉시 해제하여 타이핑이 가능하게 만듭니다.
-    userInputEl.disabled = false;
+// 4. 원문 텍스트 문장 정제 및 분리 처리기
+function parseRawText(rawText) {
+    if (!rawText || rawText.trim().length === 0) return [];
+    
+    // 불필요한 따옴표 제거 및 연속된 공백 하나로 정돈
+    let cleanText = rawText.replace(/['"‘’“”`]/g, "").replace(/\s+/g, " ");
+    
+    // 마침표, 줄바꿈 기준으로 문장 분리 후 공백 제거
+    return cleanText.split(/[.!?\n]+/)
+                    .map(s => s.trim())
+                    .filter(s => s.length > 3 && s.length < 120);
+}
 
-    if (newsData.length === 0) {
-        targetTextEl.innerText = "최신 뉴스를 다시 불러오는 중입니다...";
-        currentModeEl.innerText = "새로고침 중";
-        fetchGoogleNews();
+// 5. 로컬스토리지 저장 및 데이터 장착 완료 처리
+function loadSentences(sentences, modeName) {
+    if (sentences.length === 0) {
+        alert("인식 가능한 문장이 없습니다. 텍스트를 다시 확인해 주세요.");
+        return;
+    }
+    practiceData = sentences;
+    localStorage.setItem('savedTypingData', JSON.stringify(practiceData));
+    
+    userInputEl.disabled = false;
+    userInputEl.placeholder = "첫 글자를 입력하면 측정이 시작됩니다.";
+    textPasteArea.value = ""; // 입력창 비우기
+    
+    // 통계 초기화
+    startTime = null;
+    totalTyped = 0;
+    totalErrors = 0;
+    cpmEl.innerText = "0";
+    accuracyEl.innerText = "100";
+    errorsEl.innerText = "0";
+
+    nextQuestion(modeName);
+}
+
+// 6. 다음 문제 출제 로직
+function nextQuestion(modeName = "사용자 데이터") {
+    if (practiceData.length === 0) {
+        practiceData = [...defaultData];
+        localStorage.removeItem('savedTypingData');
+        currentModeEl.innerText = "모드: 기본 문장 완료";
+        targetTextEl.innerText = "모든 문장을 완료했습니다! 새로운 글을 장착해 주세요.";
+        userInputEl.disabled = true;
+        userInputEl.value = "";
         return;
     }
 
-    currentIndexInArray = Math.floor(Math.random() * newsData.length);
-    currentText = newsData[currentIndexInArray].title;
-    currentLink = newsData[currentIndexInArray].link;
+    currentIndexInArray = Math.floor(Math.random() * practiceData.length);
+    // 문장 자체의 앞뒤 공백을 철저하게 잘라내어 원천 차단
+    currentText = practiceData[currentIndexInArray].trim();
     
     targetTextEl.innerText = currentText;
     userInputEl.value = "";
     userInputEl.classList.remove('error');
-    
-    // 출처가 백업 데이터인지 진짜 뉴스인지에 따라 안내 문구 분기
-    if (currentLink.includes("news.google.com") && newsData.length <= backupData.length) {
-        currentModeEl.innerText = "모드: 기본 백업 문장 연습";
-        newsLinkEl.style.display = 'none'; // 백업일 땐 링크 숨기기
-    } else {
-        currentModeEl.innerText = `남은 실시간 뉴스: ${newsData.length}개`;
-        newsLinkEl.href = currentLink;
-        newsLinkEl.style.display = 'inline-block';
-    }
+    currentModeEl.innerText = `모드: ${modeName} (남은 문장: ${practiceData.length}개)`;
 }
 
-// 6. 입력 감지 및 통계 연산 로직
+// 7. [첫 글자 공백 버그 해결] 실시간 입력 감지 및 오타 연산
 userInputEl.addEventListener('input', () => {
-    if (!startTime) {
+    let typed = userInputEl.value;
+
+    // 해결 포인트: 첫 글자를 입력할 때 실수로 띄어쓰기(공백)를 누른 경우
+    // 원문 문장이 공백으로 시작하지 않는다면 오답 처리하지 않고 즉시 지워버립니다.
+    if (typed === " " && !currentText.startsWith(" ")) {
+        userInputEl.value = "";
+        return;
+    }
+
+    if (!startTime && typed.length > 0) {
         startTime = new Date(); 
     }
 
-    const typed = userInputEl.value;
     const currentTarget = currentText.substring(0, typed.length);
 
+    // 오타 실시간 피드백
     if (typed !== currentTarget) {
         userInputEl.classList.add('error');
         totalErrors++;
@@ -125,29 +121,63 @@ userInputEl.addEventListener('input', () => {
         userInputEl.classList.remove('error');
     }
 
-    totalTyped++;
+    if (typed.length > 0) totalTyped++;
 
-    const timeElapsed = (new Date() - startTime) / 1000 / 60;
-    const cpm = Math.round((totalTyped / timeElapsed)) || 0;
-    let accuracy = Math.round(((totalTyped - totalErrors) / totalTyped) * 100) || 100;
-    if (accuracy < 0) accuracy = 0;
+    // 통계 계산
+    if (startTime) {
+        const timeElapsed = (new Date() - startTime) / 1000 / 60;
+        const cpm = Math.round((totalTyped / timeElapsed)) || 0;
+        let accuracy = Math.round(((totalTyped - totalErrors) / totalTyped) * 100) || 100;
+        if (accuracy < 0) accuracy = 0;
 
-    cpmEl.innerText = cpm;
-    accuracyEl.innerText = accuracy;
-    errorsEl.innerText = totalErrors;
+        cpmEl.innerText = cpm;
+        accuracyEl.innerText = accuracy;
+        errorsEl.innerText = totalErrors;
+    }
 
+    // 한 문장 완료 검사
     if (typed === currentText) {
-        newsData.splice(currentIndexInArray, 1);
-        nextQuestion();
+        practiceData.splice(currentIndexInArray, 1);
+        // 완료될 때마다 금고 상태 실시간 백업
+        if (currentModeEl.innerText.includes("기본")) {
+            localStorage.setItem('savedTypingData', JSON.stringify(practiceData));
+        }
+        nextQuestion(currentModeEl.innerText.split('(')[0].replace('모드: ', '').trim());
     }
 });
 
-// 첫 기동 시 비상 데이터로 즉시 입력창을 열어두고 뉴스를 가져옵니다.
-currentText = "뉴스를 받아오는 동안 기본 문장으로 먼저 연습을 시작하세요!";
-targetTextEl.innerText = currentText;
-userInputEl.disabled = false;
-userInputEl.placeholder = "여기에 바로 입력하시면 시작됩니다.";
-currentModeEl.innerText = "서버 연결 시도 중...";
+// 8. 이벤트 리스너 연동 (직접 붙여넣기 기능)
+btnLoadPaste.addEventListener('click', () => {
+    const parsed = parseRawText(textPasteArea.value);
+    loadSentences(parsed, "텍스트 붙여넣기");
+});
 
-// 백그라운드에서 뉴스 수신 시작
-fetchGoogleNews();
+// 9. 이벤트 리스너 연동 (TXT 파일 업로드 기능)
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const parsed = parseRawText(event.target.result);
+        loadSentences(parsed, file.name.replace('.txt', ''));
+    };
+    reader.readAsText(file, "UTF-8");
+});
+
+// 10. 초기화 구동 시스템
+function init() {
+    const saved = localStorage.getItem('savedTypingData');
+    if (saved) {
+        practiceData = JSON.parse(saved);
+        userInputEl.disabled = false;
+        userInputEl.placeholder = "이어서 입력하세요.";
+        nextQuestion("저장된 데이터");
+    } else {
+        // 최초 진입 시 기본 셋 대기
+        practiceData = [...defaultData];
+        currentModeEl.innerText = "모드: 텍스트 공급 필요";
+    }
+}
+
+init();
