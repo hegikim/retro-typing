@@ -9,21 +9,22 @@ body {
     background-color: #121212;
     color: #e0e0e0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    overflow: hidden; /* 화면 스크롤 강제 차단 */
-    position: fixed;
-    width: 100%;
-    height: 100%;
+    /* iOS 사파리 주소창 크기 변화에 실시간으로 반응하는 동적 뷰포트 높이 */
+    min-height: 100dvh; 
+    display: flex;
+    flex-direction: column;
 }
 
 .container {
+    flex: 1;
     display: flex;
     flex-direction: column;
     width: 100%;
-    height: 100%; /* JS에서 visualViewport에 맞춰 동적으로 제어됨 */
     max-width: 600px;
     margin: 0 auto;
     padding: 16px;
-    justify-content: space-between;
+    /* 주소창과 겹치지 않도록 하단 여유 공간 추가 */
+    padding-bottom: 40px; 
 }
 
 .stats-board {
@@ -33,6 +34,7 @@ body {
     padding: 12px;
     border-radius: 8px;
     border: 1px solid #333;
+    margin-bottom: 16px;
 }
 
 .stat {
@@ -104,7 +106,7 @@ button:active, .file-label:active {
     flex-direction: column;
     justify-content: center;
     gap: 20px;
-    margin: 16px 0;
+    margin: 24px 0;
 }
 
 .target-text {
@@ -144,5 +146,5 @@ button:active, .file-label:active {
     text-align: center;
     font-size: 0.85rem;
     color: #888;
-    padding-bottom: 8px;
+    margin-top: auto;
 }
