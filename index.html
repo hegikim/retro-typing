@@ -3,22 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>나만의 뉴스·장문 타자 연습기</title>
+    <title>나만의 장문 타자 연습기</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 </head>
 <body>
     <div class="container" id="main-container">
         <header class="stats-board">
-            <div class="stat">타수: <span id="cpm">0</span></div>
-            <div class="stat">정확도: <span id="accuracy">100</span>%</div>
-            <div class="stat">오타: <span id="errors">0</span></div>
+            <div class="stat-group">
+                <div class="stat">cpm: <span id="cpm">0</span></div>
+                <div class="stat">acc: <span id="accuracy">100</span>%</div>
+                <div class="stat">err: <span id="errors">0</span></div>
+            </div>
+            <button id="btn-sound-toggle" class="sound-toggle-btn">🔊 sound on</button>
         </header>
 
         <section class="data-box">
-            <textarea id="text-paste-area" placeholder="새로운 뉴스 기사나 장문의 글을 여기에 붙여넣으면 기존 데이터는 즉시 교체됩니다..."></textarea>
+            <textarea id="text-paste-area" placeholder="새로운 텍스트나 기사를 여기에 붙여넣으면 기존 문장은 즉시 교체됩니다..."></textarea>
             <div class="btn-group">
-                <button id="btn-load-paste">📋 붙여넣은 글 장착 (교체)</button>
+                <button id="btn-load-paste">📋 붙여넣은 글 장착</button>
                 <label for="file-input" class="file-label">📁 TXT / PDF 불러오기</label>
                 <input type="file" id="file-input" accept=".txt, .pdf">
             </div>
@@ -26,16 +29,16 @@
 
         <main class="practice-area">
             <div id="target-paragraph" class="target-paragraph">
-                위의 입력창에 새로운 글을 붙여넣거나 파일(TXT, PDF)을 불러오세요. 기존 데이터는 완전히 지워지고 새 글로 교체됩니다.
+                위의 입력창에 글을 붙여넣거나 파일을 불러오세요. 기존 데이터는 완전히 지워지고 새 글로 교체됩니다.
             </div>
             
             <input type="text" id="user-input" class="user-input" 
-                   placeholder="터치하여 타이핑을 시작하세요" disabled
+                   placeholder="터치하여 타이핑을 시작하세요 (Enter로 완료)" disabled
                    autocomplete="off" spellcheck="false" autocorrect="off">
         </main>
 
         <footer class="mode-info">
-            <span id="current-mode">모드: 대기 중</span>
+            <span id="current-mode">mode: waiting</span>
         </footer>
     </div>
     <script src="script.js"></script>
