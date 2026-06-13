@@ -29,41 +29,28 @@ body {
 /* 상단 정보창 미니멀화 */
 .stats-board {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     background-color: #202124;
-    padding: 12px 16px;
+    padding: 14px 16px;
     border-radius: 8px;
     border: 1px solid #2c2d30;
 }
 
 .stat-group {
     display: flex;
-    gap: 20px;
+    gap: 24px;
 }
 
 .stat {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-family: monospace;
-    color: #606368; /* 평소에는 죽어있는 톤 */
+    color: #606368;
 }
 
 .stat span {
     color: #d1d0c5;
     font-weight: bold;
-}
-
-/* 미니멀 텍스트 버튼 스타일 */
-.sound-toggle-btn {
-    background: none !important;
-    border: none !important;
-    color: #e2b714 !important; /* 포인트 노란색 */
-    font-size: 0.85rem;
-    font-family: monospace;
-    cursor: pointer;
-    padding: 4px 8px !important;
-    width: auto !important;
-    flex: none !important;
 }
 
 .data-box {
@@ -98,7 +85,7 @@ button, .file-label {
     flex: 1;
     background-color: #2c2d30;
     color: #606368;
-    border: 1px solid #3c3d40;
+    border: 1px solid #333437;
     padding: 10px;
     border-radius: 6px;
     font-size: 0.8rem;
@@ -138,7 +125,7 @@ button:active, .file-label:active {
     text-align: left;
     word-break: keep-all;
     letter-spacing: 0.5px;
-    color: #606368; /* 아직 입력 안 한 글자는 어두운 그레이 */
+    color: #606368; /* 입력 안 한 글자는 흐린 그레이 */
 }
 
 /* 입력 성공 글자 (소프트 화이트) */
