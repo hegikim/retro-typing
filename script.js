@@ -5,10 +5,9 @@ let currentText = "";
 let cleanCompareText = "";
 let currentIndexInArray = -1;
 
-// [스마트 타이머 변수 구조]
-let totalElapsedTime = 0;   // 순수하게 타이핑에 사용된 총 누적 시간 (밀리초)
-let lastTapTime = null;      // 마지막으로 자판을 누른 시점
-let timerActive = false;     // 현재 타이머 카운팅 상태 여부
+let totalElapsedTime = 0;   
+let lastTapTime = null;      
+let timerActive = false;     
 
 let totalTyped = 0;
 let totalErrors = 0;
@@ -35,36 +34,60 @@ userInputEl.addEventListener('focus', () => {
     }, 300);
 });
 
+// [변경됨] 마침표, 쉼표, 물음표, 느낌표(. , ? !)는 지우지 않고 채점용 텍스트에 그대로 남겨둠
 function removeSpecialChars(text) {
-    return text.replace(/[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z ]/g, "").replace(/\s+/g, " ");
+    // 한글, 영어, 공백 및 . , ? ! 를 제외한머지 특수기호만 제거
+    return text.replace(/[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9.,?! ]/g, "").replace(/\s+/g, " ");
 }
 
+// [신규] 제목, 목차, 서식 기호가 가득한 무의미한 줄을 걸러내는 필터링 함수
+function isTitleOrTrashLine(line) {
+    const trimmed = line.trim();
+    
+    // 1. 공백이거나 너무 짧은 라인 패스
+    if (trimmed.length <= 3) return true;
+    
+    // 2. 숫자로만 채워진 라인 패스 (페이지 번호 등)
+    if (/^\d+$/.test(trimmed)) return true;
+    
+    // 3. 마크다운 서식이나 리스트 기호로 시작하는 제목 스타일 패스 (### , - , 1. )
+    if (/^[\s#\-\*•]+/.test(trimmed) || /^\d+\s*[\.\)]/.test(trimmed)) return true;
+    
+    // 4. 띄어쓰기로 분리했을 때 단어 수가 3개 이하인 경우 제목으로 판단하고 패스
+    const words = trimmed.split(/\s+/);
+    if (words.length <= 3) return true;
+    
+    return false; // 통과 (정상 문장)
+}
+
+// 텍스트 분리 및 제목 필터 탑재
 function parseRawText(rawText) {
     if (!rawText || rawText.trim().length === 0) return [];
+    
+    // 줄바꿈 또는 문장 구별 부호로 쪼갠 뒤 정제 구문 통과
     return rawText.split(/[.!?\n]+/)
                   .map(s => s.trim())
-                  .filter(s => s.length > 2 && s.length < 150);
+                  .filter(s => {
+                      // 기존 글자수 제한 조건 + 새로 만든 제목 필터링 조건 대조
+                      return s.length > 5 && s.length < 150 && !isTitleOrTrashLine(s);
+                  });
 }
 
-// 스마트 타이머 누적 시스템 정산기
 function updateCPMTimer() {
     if (!timerActive || !lastTapTime) return;
 
     const now = new Date();
     const diff = now - lastTapTime;
 
-    // 마지막 입력 후 4초가 지나면 유저가 자리를 비운 것으로 간주 (자동 일시정지)
     if (diff > 4000) {
         timerActive = false;
         lastTapTime = null;
         return;
     }
 
-    // 4초 이내의 정상 흐름일 때는 경과 시간을 실시간으로 누적 수집
     totalElapsedTime += diff;
     lastTapTime = now;
 
-    // 분 단위 변환 후 실시간 CPM 표기
     const minutes = totalElapsedTime / 1000 / 60;
     if (minutes > 0) {
         const cpm = Math.round(totalTyped / minutes) || 0;
@@ -72,12 +95,11 @@ function updateCPMTimer() {
     }
 }
 
-// 실시간 주기적 타이머 보정 주기 가동 (0.2초마다 유저 자리비움 모니터링)
 setInterval(updateCPMTimer, 200);
 
 function loadSentences(sentences, modeName) {
     if (sentences.length === 0) {
-        alert("가져올 수 있는 문장이 없습니다.");
+        alert("가져올 수 있는 유효한 연습 문장이 없습니다. 제목이나 서식을 제외한 본문 위주로 유입시켜 주세요.");
         return;
     }
     
@@ -86,10 +108,9 @@ function loadSentences(sentences, modeName) {
     localStorage.setItem('savedTypingData', JSON.stringify(practiceData));
     
     userInputEl.disabled = false;
-    userInputEl.placeholder = "타이핑 후 Enter를 누르면 다음 문장으로 갑니다.";
+    userInputEl.placeholder = "타이핑 후 Enter를 누르면 정산됩니다.";
     textPasteArea.value = ""; 
     
-    // 타이머 및 통계값 완전 리셋
     totalElapsedTime = 0;
     lastTapTime = null;
     timerActive = false;
@@ -107,7 +128,7 @@ function nextQuestion(modeName = "user data") {
         practiceData = [...defaultData];
         localStorage.removeItem('savedTypingData');
         currentModeEl.innerText = "mode: clear";
-        targetParagraphEl.innerHTML = "모든 문장을 완료했습니다! 새로운 글이나 파일을 장착해 주세요.";
+        targetParagraphEl.innerHTML = "모든 본문 문장을 완료했습니다! 새로운 문서 데이터를 불러와 주세요.";
         userInputEl.disabled = true;
         userInputEl.value = "";
         return;
@@ -122,13 +143,16 @@ function nextQuestion(modeName = "user data") {
     currentModeEl.innerText = `mode: ${modeName} (left: ${practiceData.length})`;
 }
 
+// [변경됨] 채점용 정제 문자 세트(cleanCompareText)의 기준에 맞춰 4종 문장부호 채점 하이라이트 매칭
 function renderTextVisuals(typed) {
     let htmlOutput = "";
     let typedIdx = 0;
 
     for (let i = 0; i < currentText.length; i++) {
         const char = currentText[i];
-        const isSpecial = /[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z ]/.test(char);
+        
+        // . , ? ! 는 제외하고 나머지 불필요한 괄호, 쌍따옴표 등만 자동 통과시킴
+        const isSpecial = /[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9.,?! ]/.test(char);
 
         if (isSpecial) {
             htmlOutput += `<span class="char-correct">${char}</span>`;
@@ -159,14 +183,11 @@ userInputEl.addEventListener('input', () => {
         return;
     }
 
-    // [타이머 엔진 트리거 인터셉트]
     const now = new Date();
     if (!timerActive) {
-        // 일시정지 상태였거나 첫 자를 치는 순간 타이머 세션 오픈
         lastTapTime = now;
         timerActive = true;
     } else {
-        // 타이머가 돌고 있다면 이전 타건과 현재 타건 사이의 간격을 밀리초 단위로 수집
         const diff = now - lastTapTime;
         if (diff < 4000) {
             totalElapsedTime += diff;
@@ -177,7 +198,6 @@ userInputEl.addEventListener('input', () => {
     renderTextVisuals(typed);
     if (typed.length > 0) totalTyped++;
 
-    // 실시간 cpm 즉시 정산 반영
     const minutes = totalElapsedTime / 1000 / 60;
     if (minutes > 0) {
         const cpm = Math.round(totalTyped / minutes) || 0;
@@ -209,7 +229,6 @@ userInputEl.addEventListener('keydown', (e) => {
         accuracyEl.innerText = accuracy;
         errorsEl.innerText = totalErrors;
 
-        // 엔터를 쳤으므로 현재 문장의 일시적인 타이머 세션 오프
         timerActive = false;
         lastTapTime = null;
 
