@@ -34,41 +34,37 @@ userInputEl.addEventListener('focus', () => {
     }, 300);
 });
 
-// [변경됨] 마침표, 쉼표, 물음표, 느낌표(. , ? !)는 지우지 않고 채점용 텍스트에 그대로 남겨둠
+// 특수기호 및 불규칙 공백 제거 (채점 및 가독성 싱크 통합 정제)
 function removeSpecialChars(text) {
-    // 한글, 영어, 공백 및 . , ? ! 를 제외한머지 특수기호만 제거
-    return text.replace(/[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9.,?! ]/g, "").replace(/\s+/g, " ");
+    // 1. 한글, 영어, 숫자, 필수 문장부호(. , ? !) 및 공백만 남김
+    let filtered = text.replace(/[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9.,?! ]/g, "");
+    // 2. PDF 등에서 유입된 뒤죽박죽 연속된 공백(\s+)을 무조건 깔끔하게 딱 1칸(" ")으로 통일
+    return filtered.replace(/\s+/g, " ").trim();
 }
 
-// [신규] 제목, 목차, 서식 기호가 가득한 무의미한 줄을 걸러내는 필터링 함수
+// 제목, 목차, 서식 기호 필터링
 function isTitleOrTrashLine(line) {
     const trimmed = line.trim();
-    
-    // 1. 공백이거나 너무 짧은 라인 패스
     if (trimmed.length <= 3) return true;
-    
-    // 2. 숫자로만 채워진 라인 패스 (페이지 번호 등)
     if (/^\d+$/.test(trimmed)) return true;
-    
-    // 3. 마크다운 서식이나 리스트 기호로 시작하는 제목 스타일 패스 (### , - , 1. )
     if (/^[\s#\-\*•]+/.test(trimmed) || /^\d+\s*[\.\)]/.test(trimmed)) return true;
     
-    // 4. 띄어쓰기로 분리했을 때 단어 수가 3개 이하인 경우 제목으로 판단하고 패스
     const words = trimmed.split(/\s+/);
     if (words.length <= 3) return true;
     
-    return false; // 통과 (정상 문장)
+    return false; 
 }
 
-// 텍스트 분리 및 제목 필터 탑재
+// 원문 텍스트 분리 정제기
 function parseRawText(rawText) {
     if (!rawText || rawText.trim().length === 0) return [];
     
-    // 줄바꿈 또는 문장 구별 부호로 쪼갠 뒤 정제 구문 통과
     return rawText.split(/[.!?\n]+/)
-                  .map(s => s.trim())
+                  .map(s => {
+                      // 쪼개진 각 문장 내의 불규칙한 다중 공백을 1칸으로 사전 압축 정돈
+                      return s.replace(/\s+/g, " ").trim();
+                  })
                   .filter(s => {
-                      // 기존 글자수 제한 조건 + 새로 만든 제목 필터링 조건 대조
                       return s.length > 5 && s.length < 150 && !isTitleOrTrashLine(s);
                   });
 }
@@ -99,7 +95,7 @@ setInterval(updateCPMTimer, 200);
 
 function loadSentences(sentences, modeName) {
     if (sentences.length === 0) {
-        alert("가져올 수 있는 유효한 연습 문장이 없습니다. 제목이나 서식을 제외한 본문 위주로 유입시켜 주세요.");
+        alert("가져올 수 있는 유효한 연습 문장이 없습니다.");
         return;
     }
     
@@ -135,41 +131,35 @@ function nextQuestion(modeName = "user data") {
     }
 
     currentIndexInArray = Math.floor(Math.random() * practiceData.length);
-    currentText = practiceData[currentIndexInArray].trim();
-    cleanCompareText = removeSpecialChars(currentText).trim();
+    
+    // 가져온 원문 자체를 규칙에 맞춰 공백 1칸짜리 완전체 정제 텍스트로 고정
+    let rawSentence = practiceData[currentIndexInArray];
+    currentText = removeSpecialChars(rawSentence);
+    cleanCompareText = currentText; // 공백이 완벽히 정돈되어 둘이 일치함
 
     userInputEl.value = "";
     renderTextVisuals(""); 
     currentModeEl.innerText = `mode: ${modeName} (left: ${practiceData.length})`;
 }
 
-// [변경됨] 채점용 정제 문자 세트(cleanCompareText)의 기준에 맞춰 4종 문장부호 채점 하이라이트 매칭
+// [수정 완료] 실시간 조합 중일 때는 오타 패널티 색상을 띄우지 않고 자연스러운 흐름 유지
 function renderTextVisuals(typed) {
     let htmlOutput = "";
-    let typedIdx = 0;
+    const currentLength = typed.length;
 
     for (let i = 0; i < currentText.length; i++) {
         const char = currentText[i];
-        
-        // . , ? ! 는 제외하고 나머지 불필요한 괄호, 쌍따옴표 등만 자동 통과시킴
-        const isSpecial = /[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9.,?! ]/.test(char);
 
-        if (isSpecial) {
+        if (i < currentLength) {
+            // [요청 반영] 실시간 타이핑 중 지나간 글자는 오타 여부 상관없이 무조건 깨끗한 흰색(Correct) 유지
+            // 실제 맞고 틀린 정산은 엔터를 누를 때만 판정하여 상단 보드에 반영
             htmlOutput += `<span class="char-correct">${char}</span>`;
+        } else if (i === currentLength) {
+            // 현재 입력해야 하는 글자 위치만 포인트 색상 스위칭
+            htmlOutput += `<span class="char-current">${char}</span>`;
         } else {
-            if (typedIdx < typed.length) {
-                if (typed[typedIdx] === char) {
-                    htmlOutput += `<span class="char-correct">${char}</span>`;
-                } else {
-                    htmlOutput += `<span class="char-incorrect">${char === " " ? " " : char}</span>`;
-                }
-                typedIdx++;
-            } else if (typedIdx === typed.length) {
-                htmlOutput += `<span class="char-current">${char}</span>`;
-                typedIdx++;
-            } else {
-                htmlOutput += `<span>${char}</span>`;
-            }
+            // 아직 도달하지 않은 미래의 글자 구간 (차분한 회색)
+            htmlOutput += `<span>${char}</span>`;
         }
     }
     targetParagraphEl.innerHTML = htmlOutput;
@@ -195,6 +185,7 @@ userInputEl.addEventListener('input', () => {
         lastTapTime = now;
     }
 
+    // 실시간 비주얼 업데이트 (조합 버그 제어형)
     renderTextVisuals(typed);
     if (typed.length > 0) totalTyped++;
 
@@ -205,16 +196,18 @@ userInputEl.addEventListener('input', () => {
     }
 });
 
+// [최종 정산] 엔터를 누르는 시점에 전체 문장을 최종 대조하여 오타 개수 확정 판정
 userInputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         e.preventDefault();
         
-        let typed = userInputEl.value.trim();
+        let typed = userInputEl.value; // 마지막 공백 유연성 유지를 위해 trim 제거
         let target = cleanCompareText;
 
         let localErrors = 0;
         const maxLength = Math.max(typed.length, target.length);
         
+        // 엔터 시점 오타 대조 연산
         for (let i = 0; i < maxLength; i++) {
             if (typed[i] !== target[i]) {
                 localErrors++;
@@ -237,9 +230,25 @@ userInputEl.addEventListener('keydown', (e) => {
             localStorage.setItem('savedTypingData', JSON.stringify(practiceData));
         }
         
+        // 정산 피드백을 눈으로 인지할 수 있도록 일시적으로 오타 결과를 빨갛게 피드백 화면 전환
+        let finalHtml = "";
+        for (let i = 0; i < target.length; i++) {
+            if (i < typed.length) {
+                if (typed[i] === target[i]) {
+                    finalHtml += `<span class="char-correct">${target[i]}</span>`;
+                } else {
+                    finalHtml += `<span class="char-incorrect">${target[i] === " " ? " " : target[i]}</span>`;
+                }
+            } else {
+                finalHtml += `<span class="char-incorrect">${target[i] === " " ? " " : target[i]}</span>`;
+            }
+        }
+        targetParagraphEl.innerHTML = finalHtml;
+
+        // 0.25초 뒤 다음 문제로 부드럽게 스위칭
         setTimeout(() => {
             nextQuestion(currentModeEl.innerText.split('(')[0].replace('mode: ', '').trim());
-        }, 100);
+        }, 250);
     }
 });
 
